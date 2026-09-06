@@ -9,10 +9,18 @@ Learning (MIL)** in computational pathology:
   (CIA-MIL)** — I. Chraki, P. Marza, S. Christodoulidis, M. Vakalopoulou (MIDL 2026).
 
 CAR-MIL is an extension of CIA-MIL. This repository is the reference implementation for
-CAR-MIL and also contains the CIA-MIL training code, since CIA-MIL was not released with a
-separate repository.
+CAR-MIL and also contains the CIA-MIL training code.
 
----
+<p align="center">
+  <img src="docs/teaser.pdf" width="90%" alt="CAR-MIL teaser"/>
+</p>
+
+<p align="center"><em>
+(a) Dropping the most highly-attended instances degrades CAR-MIL's confidence faster than
+ABMIL on TCGA-BRCA. (b) On a BRACS DCIS slide, the factual branch attends to the carcinoma and
+predicts DCIS, while the counterfactual branch reallocates evidence and flips the prediction to
+Benign.
+</em></p>
 
 ## Overview
 
@@ -58,29 +66,12 @@ inference-time cost. `--alpha_effect` = λ.
 
 ---
 
-## Repository layout
-
-```
-src/
-├── main.py            # plain MIL baselines (ABMIL, CLAM, DSMIL, TransMIL, Mean/Max, IBMIL, ...)
-├── main_car.py        # CAR-MIL training (learned counterfactual branch + L_diff + L_div)
-├── main_cia.py        # CIA-MIL training (random/uniform counterfactual intervention)
-├── eval.py            # perturbation / patch-flipping faithfulness evaluation of a checkpoint
-├── dataloader.py      # Camelyon16 / TCGA (BRCA, NSCLC) / TCGA-LUAD-TP53 / BRACS datasets, k-fold CV
-├── utils.py           # seeding, metrics (five_scores), EarlyStopping, patch/group shuffle
-├── modules/           # MIL backbones and their counterfactual variants
-│   ├── attmil.py / attmil_cf.py     # ABMIL + AttentionGated, with _CF (CAR) and _CAL (CIA) heads
-│   ├── clam.py                       # CLAM_SB/MB + CLAM_SB_CAL
-│   ├── dsmil.py                      # MILNet + MILNet_CF / MILNet_CAL
-│   ├── transmil.py                   # TransMIL + TransMIL_CF
-│   ├── attmil_ibmil.py, mean_max.py, nystrom_attention.py, emb_position.py, mhim.py
-│   └── topk/                         # smooth top-k SVM loss (CLAM dependency)
-├── data_label/       # example patient -> label CSVs (label_brca.csv, label_nsclc.csv)
-└── README.md         # upstream RRT-MIL notes on WSI patching / feature extraction
-```
+## Code base
 
 The training pipeline (dataloaders, CV splitting, metrics, backbone implementations) is adapted
 from [RRT-MIL](https://github.com/DearCaat/RRT-MIL) / [MHIM-MIL](https://github.com/DearCaat/MHIM-MIL).
+The perturbation ("patch dropping") faithfulness evaluation in [`src/eval.py`](src/eval.py)
+follows [xMIL (Hense et al., NeurIPS 2024)](https://arxiv.org/abs/2406.04280).
 
 ### Counterfactual model variants
 
@@ -109,9 +100,6 @@ pip install torch torchvision
 pip install timm h5py pandas numpy scikit-learn tqdm nystrom-attention wandb
 ```
 
-There is no lockfile. `wandb` is imported but optional (logging goes to stdout). Targets
-PyTorch ≥ 1.12.
-
 ---
 
 ## Data preparation
@@ -130,8 +118,6 @@ Expected `--dataset_root` layout:
 | `luad_tp53` | `metadata.csv` with `slide_id,TP53` | `pt_files/<slide_id>.pt` | known failed slides filtered in `dataloader.py` |
 
 Example label CSVs for TCGA-BRCA and TCGA-NSCLC are in [`src/data_label/`](src/data_label/).
-A BRACS loader (`get_patient_label_bracs`, `TCGADataset_BRACS`) is present in
-[`src/dataloader.py`](src/dataloader.py) but not wired into the training scripts' dataset switch.
 
 ---
 
@@ -184,7 +170,8 @@ python main_cia.py \
 ### 4. Faithfulness evaluation
 
 [`src/eval.py`](src/eval.py) loads `fold_<k>_model_best_auc.pt`, recomputes classification
-metrics, and runs a MoRF (Most-Relevant-First) perturbation test: patches are dropped (or
+metrics, and runs a MoRF (Most-Relevant-First) perturbation test in the style of
+[xMIL (Hense et al., NeurIPS 2024)](https://arxiv.org/abs/2406.04280): patches are dropped (or
 added) in attention order and the target-class probability plus attention entropy / Gini are
 tracked per slide — the perturbation curves behind the AUPC / AOPCR numbers in the papers.
 
@@ -203,7 +190,6 @@ python eval.py \
 | `--strategy` | `1%-of-all`, `one-by-one` | perturbation step size |
 | `--order` | `morf`, `morl` | most- vs least-relevant first |
 | `--attribution_strategy` | `original`, `random`, `absolute` | which patch scores to rank by |
-| `--evidence` | `regular`, `mean`, `max`, `delta` | for `_CF` models: which branch is the explanation (`delta` = factual − counterfactual) |
 
 Outputs go to `$MODEL_PATH/.../Eval_Flapping/*.csv`.
 
@@ -212,8 +198,8 @@ Outputs go to `$MODEL_PATH/.../Eval_Flapping/*.csv`.
 ## Metrics
 
 `utils.five_scores` returns accuracy, AUC, precision, recall, F1. The operating threshold is
-Youden's J for Camelyon16 and set per-task for the TCGA subtyping tasks; use `five_scores_multi`
-(balanced accuracy + macro AUC/F1) for the multi-class settings (e.g. BRACS). Cross-validation
+Youden's J for Camelyon16 and set per-task for the TCGA subtyping tasks; `five_scores_multi`
+(balanced accuracy + macro AUC/F1) is available for multi-class settings. Cross-validation
 mean ± std is printed at the end of each run.
 
 ---
@@ -245,7 +231,9 @@ Built on [RRT-MIL](https://github.com/DearCaat/RRT-MIL) /
 [CLAM](https://github.com/mahmoodlab/CLAM), [DSMIL](https://github.com/binli123/dsmil-wsi),
 [TransMIL](https://github.com/szc19990412/TransMIL), and
 [IBMIL](https://github.com/HHHedo/IBMIL). The counterfactual-attention idea follows
-[Rao et al., *Counterfactual Attention Learning*, ICCV 2021](https://arxiv.org/abs/2108.08728).
+[Rao et al., *Counterfactual Attention Learning*, ICCV 2021](https://arxiv.org/abs/2108.08728),
+and the faithfulness evaluation follows
+[Hense et al., *xMIL*, NeurIPS 2024](https://arxiv.org/abs/2406.04280).
 Results are based in part upon data generated by the [TCGA Research Network](https://www.cancer.gov/tcga).
 This work was supported by the Agence Nationale de la Recherche (ANR-21-RHUS-0003,
 ANR-21-CE45-0007, ANR-23-CE45-0029, ANR-23-IAHU-0002, ANR-23-IACL-0003 – DATAIA CLUSTER), with
