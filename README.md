@@ -12,7 +12,7 @@ CAR-MIL is an extension of CIA-MIL. This repository is the reference implementat
 CAR-MIL and also contains the CIA-MIL training code.
 
 <p align="center">
-  <img src="docs/teaser.pdf" width="90%" alt="CAR-MIL teaser"/>
+  <img src="docs/teaser.png" , alt="CAR-MIL teaser"/>
 </p>
 
 <p align="center"><em>
@@ -32,37 +32,11 @@ forces the model's decision to depend on the causal effect of the attended evide
 
 | | CIA-MIL (MIDL 2026) | CAR-MIL (ECCV 2026) |
 |---|---|---|
-| Counterfactual attention | **fixed** random / uniform attention `Ā` | **learned** lightweight branch `ψ_cf` |
+| Counterfactual attention | **fixed** random / uniform attention `Ā` | **learned** counterfactual attention |
 | Training signal | effect term `L_CE(Y(A,X) − Y(do(A=Ā),X), y)` | effect term + attention-proximity term |
 | Objective | `L = L_cls + λ·L_effect` | `L = L_cls + α·L_diff + λ·L_div` |
 | Goal | causally align attention, keep performance | complementary factual/counterfactual maps, keep or improve performance |
 | Script | [`src/main_cia.py`](src/main_cia.py) | [`src/main_car.py`](src/main_car.py) |
-
-### CAR-MIL objective
-
-Factual branch `ψ` and counterfactual branch `ψ_cf` share the encoder `E` and classifier `φ`.
-With attention logits `u`, `u_cf` and class logits `F(u)`, `F(u_cf)`:
-
-```
-L = L_cls  +  α · L_diff  +  λ · L_div
-
-L_cls  = CE( ŷ(u), y )                          # factual classification
-L_diff = CE( softmax(F(u) − F(u_cf)), y )       # evidence differential: predictions must differ on the true class
-L_div  = D(u, u_cf)                             # proximity: attention logits must stay close; D = L1 (Eq. 9) or cosine (Eq. 10)
-```
-
-In code (`CustomLoss_L1` / `CustomLoss_COS` in [`src/main_car.py`](src/main_car.py)):
-`--alpha_effect` = α (weights `L_diff`), `--alpha_att` = λ (weights `L_div`),
-`--reg_dist {L1,COS}` selects the distance `D`.
-
-### CIA-MIL objective
-
-```
-L = L_CE( Y(A,X), y )  +  λ · L_CE( Y(A,X) − Y(do(A=Ā),X), y )
-```
-
-`Ā` is a single sampled random (or uniform) counterfactual attention per bag, so there is no
-inference-time cost. `--alpha_effect` = λ.
 
 ---
 
@@ -73,20 +47,7 @@ from [RRT-MIL](https://github.com/DearCaat/RRT-MIL) / [MHIM-MIL](https://github.
 The perturbation ("patch dropping") faithfulness evaluation in [`src/eval.py`](src/eval.py)
 follows [xMIL (Hense et al., NeurIPS 2024)](https://arxiv.org/abs/2406.04280).
 
-### Counterfactual model variants
 
-| Backbone | Baseline (`main.py` / `eval.py`) | CAR variant (`main_car.py`) | CIA variant (`main_cia.py`) |
-|----------|----------------------------------|-----------------------------|-----------------------------|
-| ABMIL – gated (`gattmil`) | `attmil.AttentionGated` | `attmil_cf.AttentionGated_CF` | `attmil_cf.AttentionGated_CAL` (`cia_gattmil`) |
-| ABMIL – deep attention (`attmil`) | `attmil.DAttention` | `attmil_cf.DAttention_CF` | – |
-| CLAM-SB (`clam_sb`) | `clam.CLAM_SB` | – | `clam.CLAM_SB_CAL` (`cia_clam_sb`) |
-| DSMIL (`dsmil`) | `dsmil.MILNet` | `dsmil.MILNet_CF` | `dsmil.MILNet_CAL` (`cia_dsmil`) |
-| TransMIL (`transmil`) | `transmil.TransMIL` | `transmil.TransMIL_CF` | – |
-
-The `_CF` / `_CAL` modules return `(Y, A)` where `Y = [ŷ_factual, ŷ_cf]` and
-`A = [u_factual, u_cf]`; they also expose `forward_eval` used by [`src/eval.py`](src/eval.py).
-
----
 
 ## Installation
 
@@ -115,7 +76,7 @@ Expected `--dataset_root` layout:
 |--------------|-----------|---------------|-------|
 | `camelyon16` | `metadata.csv` with `slide_id,label` | `h5_files/<slide_id>.h5` (`features` dataset) | `normal` → 0, else → 1 |
 | `tcga` | `label.csv` with `patient_id,label` | `pt_files/<slide_id>.pt` | `--tcga_sub {brca,nsclc}`; IDC / LUAD → 0 |
-| `luad_tp53` | `metadata.csv` with `slide_id,TP53` | `pt_files/<slide_id>.pt` | known failed slides filtered in `dataloader.py` |
+| `luad_tp53` | `metadata.csv` with `slide_id,TP53` | `pt_files/<slide_id>.pt` | `TP53` → 1, else → 0 |
 
 Example label CSVs for TCGA-BRCA and TCGA-NSCLC are in [`src/data_label/`](src/data_label/).
 
@@ -192,15 +153,6 @@ python eval.py \
 | `--attribution_strategy` | `original`, `random`, `absolute` | which patch scores to rank by |
 
 Outputs go to `$MODEL_PATH/.../Eval_Flapping/*.csv`.
-
----
-
-## Metrics
-
-`utils.five_scores` returns accuracy, AUC, precision, recall, F1. The operating threshold is
-Youden's J for Camelyon16 and set per-task for the TCGA subtyping tasks; `five_scores_multi`
-(balanced accuracy + macro AUC/F1) is available for multi-class settings. Cross-validation
-mean ± std is printed at the end of each run.
 
 ---
 
