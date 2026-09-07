@@ -3,10 +3,10 @@
 Code for two related papers on **counterfactual reasoning for attention in Multiple Instance
 Learning (MIL)** in computational pathology:
 
-- **CAR-MIL: Counterfactual Attention Regularization for Multiple Instance Learning** —
+- **CAR-MIL: Counterfactual Attention Regularization for Multiple Instance Learning** 
   I. Chraki, P. Marza, S. Christodoulidis, M. Vakalopoulou (ECCV 2026).
 - **Counterfactual Intervention in Attention Multiple Instance Learning for Digital Pathology
-  (CIA-MIL)** — I. Chraki, P. Marza, S. Christodoulidis, M. Vakalopoulou (MIDL 2026).
+  (CIA-MIL)**  I. Chraki, P. Marza, S. Christodoulidis, M. Vakalopoulou (MIDL 2026).
 
 CAR-MIL is an extension of CIA-MIL. This repository is the reference implementation for
 CAR-MIL and also contains the CIA-MIL training code.
@@ -55,7 +55,7 @@ follows [xMIL (Hense et al., NeurIPS 2024)](https://arxiv.org/abs/2406.04280).
 conda create -n carmil python=3.9 -y
 conda activate carmil
 
-# PyTorch — match your CUDA version
+# PyTorch -> match your CUDA version
 pip install torch torchvision
 
 pip install timm h5py pandas numpy scikit-learn tqdm nystrom-attention wandb
@@ -94,7 +94,7 @@ pass it even for single-GPU runs.
 python main.py \
   --datasets tcga --tcga_sub brca --dataset_root $DATA --input_dim 1024 \
   --model gattmil --cv_fold 5 --task_id 0 \
-  --num_epoch 100 --lr 2e-4 --seed 2021 \
+  --num_epoch 100 --lr 2e-4  \
   --model_path $OUT --project brca_baseline --title gattmil
 ```
 
